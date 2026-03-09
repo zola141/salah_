@@ -5,7 +5,6 @@ import { GRACE_PERIOD } from "../config.js";
 
 export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUsers) => {
   io.on("connection", (socket) => {
-    console.log("Player connected:", socket.id);
 
     const ensurePresenceOnline = (email) => {
       if (!email) return;
@@ -34,20 +33,14 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       const { email, gameType, token } = data;
       const resolvedEmail = email || (authTokens.has(token) ? authTokens.get(token)?.email : socket.data.userEmail);
       
-      // Log for debugging
-      console.log(`[join-room] email: ${resolvedEmail}, gameType: ${gameType}, token valid: ${authTokens.has(token)}`);
-      
-      // Store email in socket data for chat functionality
       if (resolvedEmail) {
         ensurePresenceOnline(resolvedEmail);
-        console.log(`[join-room] Set socket.data.userEmail to: ${resolvedEmail}`);
         joinUserPrivateRoom(resolvedEmail);
       }
       
       // If token not in memory store, we'll still allow connection but will rely on email validation
       // In production, validate token against database/JWT
       if (!authTokens.has(token) && !resolvedEmail) {
-        console.log("[Socket] Missing both token and email");
         socket.emit("room-error", { message: "Missing authentication" });
         return;
       }
@@ -140,12 +133,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
         });
 
         if (!matchedRoomPlayer) {
-          console.log("[join-room-code] Membership mismatch", {
-            roomCode,
-            requestedIdentity,
-            canonicalEmail,
-            roomPlayers: room.players.map((p) => ({ email: p.email, nickname: p.nickname }))
-          });
           socket.emit("room-error", { message: "You are not a member of this room" });
           return;
         }
@@ -162,11 +149,8 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
         const presenceEmail = presenceUser?.email || canonicalEmail || roomMemberEmail;
         if (presenceEmail) {
           ensurePresenceOnline(presenceEmail);
-          console.log(`[join-room-code] Set socket.data.userEmail to: ${presenceEmail}`);
           joinUserPrivateRoom(presenceEmail);
         }
-
-        console.log(`[join-room-code] roomCode: ${roomCode}, requested: ${requestedIdentity}, memberEmail: ${roomMemberEmail}, token valid: ${authTokens.has(token)}`);
 
         if (room.players.length > room.maxPlayers) {
           socket.emit("room-error", { message: "Room is full" });
@@ -298,13 +282,11 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       };
       
       if (!room) {
-        console.log("[request-game-state] Room not found:", roomId);
         return;
       }
 
       const playerInfo = room.players.find((p) => p.email === email);
       if (!playerInfo) {
-        console.log("[request-game-state] Player not found in room:", email, roomId);
         return;
       }
 
@@ -317,37 +299,27 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
         bonus: room.gameState?.bonus || 0
       };
 
-      console.log("[request-game-state] Sending game state to", email, "in room", roomId, gameState);
       socket.emit("game-state-recovery", gameState);
     });
 
     socket.on("player-move", (data) => {
       const playerInfo = playerSockets.get(socket.id);
       if (!playerInfo) {
-        console.log("[player-move] No player info for socket:", socket.id);
         return;
       }
       
       const room = gameRooms.get(playerInfo.roomId);
       if (!room) {
-        console.log("[player-move] No room found for:", playerInfo.roomId);
         return;
       }
       
       if (room.status !== "playing") {
-        console.log("[player-move] Room not in playing state:", room.status);
         return;
       }
       
       const currentPlayer = room.players.find((p) => p.email === playerInfo.email);
       if (!currentPlayer) {
-        console.log("[player-move] Player not found in room:", playerInfo.email);
         return;
-      }
-      
-      // Log but don't block if it's not their turn - allow the move for better sync
-      if (room.turnOrder && room.turnOrder[room.turnIndex] !== currentPlayer.color) {
-        console.log("[player-move] Not player's turn but allowing move. Expected:", room.turnOrder[room.turnIndex], "Got:", currentPlayer.color);
       }
       
       room.gameState = room.gameState || {};
@@ -356,8 +328,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       room.gameState.lastMoveTime = Date.now();
       
       room.moveSeq = (room.moveSeq || 0) + 1;
-      
-      console.log("[player-move] Broadcasting to room:", room.id, "moveSeq:", room.moveSeq);
       
       io.to(room.id).emit("move-update", {
         email: playerInfo.email,
@@ -383,10 +353,7 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
     });
 
     socket.on("chat-join", async ({ roomId, token }) => {
-      console.log("[chat-join] roomId:", roomId, "token valid:", authTokens.has(token));
-      
       if (!roomId) {
-        console.log("[chat-join] Missing roomId");
         return;
       }
       
@@ -403,14 +370,12 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       }
       
       socket.join(roomId);
-      console.log("[chat-join] Socket joined room:", roomId);
       
       try {
         const history = await ChatMessage.find({ roomId })
           .sort({ createdAt: -1 })
           .limit(50)
           .lean();
-        console.log("[chat-join] Sending history, count:", history.length);
         socket.emit("chat-history", history.reverse());
       } catch (err) {
         console.error("Chat history error:", err.message);
@@ -419,10 +384,7 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
     });
 
     socket.on("chat-message", async ({ roomId, token, content, senderEmail: explicitSenderEmail }) => {
-      console.log("[chat-message] roomId:", roomId, "token valid:", authTokens.has(token), "content:", content?.substring(0, 20), "explicit email:", explicitSenderEmail);
-      
       if (!roomId || !content || !content.trim()) {
-        console.log("[chat-message] Missing required fields");
         return;
       }
 
@@ -434,32 +396,25 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
         if (token && authTokens.has(token)) {
           const auth = authTokens.get(token);
           senderEmail = auth.email;
-          console.log("[chat-message] Using token email:", senderEmail);
         }
         // Priority 2: Use explicitly passed sender email
         else if (explicitSenderEmail) {
           senderEmail = explicitSenderEmail;
-          console.log("[chat-message] Using explicit email:", senderEmail);
         }
         // Priority 3: Get from socket data if all else fails
         else if (socket.data.userEmail) {
           senderEmail = socket.data.userEmail;
-          console.log("[chat-message] Using socket.data email:", senderEmail);
         }
         
         if (!senderEmail) {
-          console.log("[chat-message] No sender email found, token:", !!token, "socket.data.userEmail:", socket.data.userEmail);
           return;
         }
 
         user = await User.findOne({ email: senderEmail }).select("email nickname profileImageUrl _id");
         
         if (!user) {
-          console.log("[chat-message] User not found for email:", senderEmail);
           return;
         }
-
-        console.log("[chat-message] Found user:", user.email, "nickname:", user.nickname, "roomId:", roomId);
 
         const msg = await ChatMessage.create({
           roomId,
@@ -469,8 +424,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
           content: content.trim()
         });
 
-        console.log("[chat-message] Message saved to DB with ID:", msg._id);
-        console.log("[chat-message] Broadcasting to room:", roomId);
         io.to(roomId).emit("chat-message", msg);
       } catch (err) {
         console.error("Chat message error:", err.message);
@@ -583,7 +536,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
                 if (winner.matchHistory.length > 100) winner.matchHistory = winner.matchHistory.slice(-100);
                 
                 await winner.save();
-                console.log(`✅ Winner ${winner.nickname} stats updated: ${winner.wins} wins`);
               }
               
               if (data.losers && Array.isArray(data.losers)) {
@@ -608,7 +560,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
                     if (loser.matchHistory.length > 100) loser.matchHistory = loser.matchHistory.slice(-100);
                     
                     await loser.save();
-                    console.log(`✅ Loser ${loser.nickname} stats updated: ${loser.losses} losses`);
                   }
                 }
               }
@@ -644,7 +595,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
               const gracePeriodTimer = setTimeout(() => {
                 const stillDisconnected = room.players[disconnectedIndex]?.socketId === null;
                 if (stillDisconnected && room.status === "playing" && room.turnOrder) {
-                  console.log(`[Grace Period] Player ${disconnectedPlayer.email} still disconnected after 30s - auto-skipping turn`);
                   const currentColor = room.turnOrder[room.turnIndex];
                   if (disconnectedPlayer.color === currentColor) {
                     let nextTurnIndex = -1;
@@ -724,7 +674,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
         }
         playerSockets.delete(socket.id);
       }
-      console.log("Player disconnected:", socket.id);
     });
   });
 };
