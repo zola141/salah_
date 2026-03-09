@@ -343,6 +343,8 @@
         sessionStorage.setItem("authToken", data.token);
         sessionStorage.setItem("userEmail", data.email);
         sessionStorage.setItem("userNickname", data.nickname);
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("email", data.email);
         
         // Redirect to profile WITHOUT token in URL
         window.location.href = "/profile";
