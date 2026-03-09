@@ -1481,8 +1481,8 @@ const findPlayablePawn = (color, move) => {
     }
     
     const token = sessionStorage.getItem("authToken");
-    console.log("[sendChatMessage] Emitting message to room:", chatRoomId);
-    chatSocket.emit("chat-message", { roomId: chatRoomId, token, content: message });
+    console.log("[sendChatMessage] Emitting message to room:", chatRoomId, "from:", currentEmail);
+    chatSocket.emit("chat-message", { roomId: chatRoomId, token, content: message, senderEmail: currentEmail });
     setChatInput("");
   };
 

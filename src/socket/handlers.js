@@ -196,7 +196,6 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
           gameRooms.set(roomCode, internalRoom);
         }
 
-        const user = presenceUser || await User.findOne({ email: roomMemberEmail });
         const playerIndex = internalRoom.players.findIndex((player) => player.email === roomMemberEmail);
         const playerColor = (playerIndex >= 0 ? internalRoom.players[playerIndex]?.color : null) || colors[playerIndex] || colors[0] || "red";
 
@@ -205,6 +204,9 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
           return;
         }
 
+        // Always fetch the correct user data for this specific roomMemberEmail
+        const user = await User.findOne({ email: roomMemberEmail }).select("email nickname profileImageUrl _id");
+        
         if (internalRoom.players[playerIndex]?.gracePeriodTimer) {
           clearTimeout(internalRoom.players[playerIndex].gracePeriodTimer);
           delete internalRoom.players[playerIndex].gracePeriodTimer;
@@ -416,8 +418,8 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       }
     });
 
-    socket.on("chat-message", async ({ roomId, token, content }) => {
-      console.log("[chat-message] roomId:", roomId, "token valid:", authTokens.has(token), "content:", content?.substring(0, 20));
+    socket.on("chat-message", async ({ roomId, token, content, senderEmail: explicitSenderEmail }) => {
+      console.log("[chat-message] roomId:", roomId, "token valid:", authTokens.has(token), "content:", content?.substring(0, 20), "explicit email:", explicitSenderEmail);
       
       if (!roomId || !content || !content.trim()) {
         console.log("[chat-message] Missing required fields");
@@ -425,25 +427,39 @@ export const initializeSocketHandlers = (io, gameRooms, playerSockets, onlineUse
       }
 
       try {
+        let senderEmail = null;
         let user;
         
-        // Try to get user from token
+        // Priority 1: Get sender email from token (most reliable)
         if (token && authTokens.has(token)) {
           const auth = authTokens.get(token);
-          user = await User.findOne({ email: auth.email });
+          senderEmail = auth.email;
+          console.log("[chat-message] Using token email:", senderEmail);
+        }
+        // Priority 2: Use explicitly passed sender email
+        else if (explicitSenderEmail) {
+          senderEmail = explicitSenderEmail;
+          console.log("[chat-message] Using explicit email:", senderEmail);
+        }
+        // Priority 3: Get from socket data if all else fails
+        else if (socket.data.userEmail) {
+          senderEmail = socket.data.userEmail;
+          console.log("[chat-message] Using socket.data email:", senderEmail);
         }
         
-        // Fallback to socket data
-        if (!user && socket.data.userEmail) {
-          user = await User.findOne({ email: socket.data.userEmail });
-        }
-        
-        if (!user) {
-          console.log("[chat-message] No user found, socket.data.userEmail:", socket.data.userEmail);
+        if (!senderEmail) {
+          console.log("[chat-message] No sender email found, token:", !!token, "socket.data.userEmail:", socket.data.userEmail);
           return;
         }
 
-        console.log("[chat-message] Found user:", user.email, user.nickname);
+        user = await User.findOne({ email: senderEmail }).select("email nickname profileImageUrl _id");
+        
+        if (!user) {
+          console.log("[chat-message] User not found for email:", senderEmail);
+          return;
+        }
+
+        console.log("[chat-message] Found user:", user.email, "nickname:", user.nickname, "roomId:", roomId);
 
         const msg = await ChatMessage.create({
           roomId,
