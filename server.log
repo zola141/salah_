@@ -1,0 +1,40 @@
+Server started on http://localhost:3000
+[socket.io auth] Checking token: present
+Player connected: v_BuqLVfwtNLHxD5AAAB
+MongoDB Connected
+[join-room-code] Membership mismatch {
+  roomCode: 'DLSRCZ',
+  requestedIdentity: 'zine@gmail.com',
+  canonicalEmail: 'zine@gmail.com',
+  roomPlayers: [
+    { email: 'nta', nickname: 'nta' },
+    { email: 'paco', nickname: 'ana' }
+  ]
+}
+Player disconnected: v_BuqLVfwtNLHxD5AAAB
+[socket.io auth] Checking token: present
+Player connected: 1513Dn4HkstnFj2oAAAD
+[join-room-code] Membership mismatch {
+  roomCode: 'DLSRCZ',
+  requestedIdentity: 'zine@gmail.com',
+  canonicalEmail: 'zine@gmail.com',
+  roomPlayers: [
+    { email: 'nta', nickname: 'nta' },
+    { email: 'paco', nickname: 'ana' }
+  ]
+}
+Player disconnected: 1513Dn4HkstnFj2oAAAD
+[socket.io auth] Checking token: present
+Player connected: Hbg_L0LpXbPrTKY3AAAF
+[chat-join] roomId: general token valid: false
+[chat-join] Socket joined room: general
+[chat-join] Sending history, count: 25
+[join-room-code] Set socket.data.userEmail to: paco@gmail
+[join-room-code] roomCode: TUH94W, requested: paco, memberEmail: paco, token valid: false
+[socket.io auth] Checking token: present
+Player connected: o7ZpLPbsSB6ebrJkAAAH
+[chat-join] roomId: general token valid: false
+[chat-join] Socket joined room: general
+[chat-join] Sending history, count: 25
+[join-room-code] Set socket.data.userEmail to: nta
+[join-room-code] roomCode: TUH94W, requested: nta, memberEmail: nta, token valid: false
